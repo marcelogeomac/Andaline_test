@@ -1,0 +1,113 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import torch
+%matplotlib inline
+
+DRIVE MOUNT
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+LOAD AND PREPARE DATASET
+
+df = pd.read_csv('/content/drive/MyDrive/DeepLearning/Kinross_Exploration_Una.csv', index_col=None, header=None)
+df.columns = ['x1', 'x2', 'y']
+df = df.iloc[50:100]
+df.head()
+
+IMPLEMENT LINEAR REGRESSION MODEL
+
+class LinearRegression():
+
+    def __init__(self, num_features):
+      self.num_features = num_features
+      self.weights = torch.zeros(num_features, 1,
+                                 dtype=torch.float)
+      self.bias = torch.zeros(1, dtype=torch.float)
+
+    def forward(self, x):
+      netinputs = torch.add(torch.mm(x, self.weights), self.bias)
+      activations = netinputs
+      return activations.view(-1)
+
+    def backward(self, x, yhat, y):
+
+      grad_loss_yhat = 2*(yhat - y)
+
+      grad_yhat_weights = x
+      grad_yhat_bias = 1
+
+      # Chain rule: inner times outer
+      grad_loss_weights = torch.mm(grad_yhat_weights.t(),
+                                   grad_loss_yhat.view(-1, 1)) / y.size(0)
+
+      grad_loss_bias = torch.sum(grad_yhat_bias * grad_loss_yhat) / y.size(0)
+
+      # Return negative gradient
+      return (-1)*grad_loss_weights, (-1)*grad_loss_bias
+      
+DEFINE TRAINING AND EVALUATION FUNCTION
+
+def loss(yhat, y):
+  return torch.mean((yhat - y)**2)
+
+def train(model, x, y, num_epochs, learning_rate=0.01):
+  cost = []
+  for e in range(num_epochs):
+
+    ### Compute outputs ###
+    yhat = model.forward(x)
+
+    ### Compute gradients ###
+    negative_grad_w, negative_grade_b = model.backward(x, yhat, y)
+
+    ### Update weights ###
+    model.weights += learning_rate * negative_grad_w
+    model.bias += learning_rate * negative_grade_b
+
+    ### Logging ##
+    yhat = model.forward(x) # not that this is a bit wasteful here
+    curr_loss = loss(yhat, y)
+    print('Epoch: %03f' % (e+1), end="")
+    print(' | MSE: %.sf' % curr_loss)
+    cost.append(curr_loss)
+
+  return cost
+  
+  TRAIN LINEAR REGRESSION MODEL
+  
+  model = LinearRegression(num_features = x_train.size(1))
+cost = train(model,
+             x_train, y_train,
+             num_epochs=100,
+             learning_rate=0.05)
+
+EVALUATE LINEAR REGRESSION MODEL
+
+plt.plot(range(len(cost)), cost)
+plt.ylabel('Mean Squared Error')
+plt.xlabel('Epoch')
+plt.show()
+
+train_pred = model.forward(x_train)
+test_pred = model.forward(x_test)
+
+print('Train MSE: %.5f' % loss(train_pred, y_train))
+print('Test MSE: %.5f' % loss(test_pred, y_test))
+
+COMPARE WITH ANALYTICAL SOLUTION
+
+print('Weights', model.weights)
+print('Bias', model.bias)
+
+def analytical_solution(x, y):
+  Xb = torch.cat( (torch.ones((x.size(0), 1)), x), dim=1)
+  w = torch.zeros(x.size(1))
+  z = torch.inverse(torch.matmul(Xb.t(), Xb))
+  params = torch.matmul(z, torch.matmul(Xb.t(), y))
+  b, w = torch.tensor([params[0]]), params[1:].view(x.size(1), 1)
+  return w, b
+
+w, b = analytical_solution(x_train, y_train)
+print('Analytical weights:', w)
+print('Analytical bias:', b)
